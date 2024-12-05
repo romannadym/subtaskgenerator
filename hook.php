@@ -70,6 +70,7 @@ function plugin_subtaskgenerator_install()
             `description`    TEXT   NOT NULL,
             `container_id`  INT UNSIGNED   NOT NULL DEFAULT 0,
             `itilcategory_id`  INT UNSIGNED   NOT NULL DEFAULT 0,
+            `slas_id`  INT UNSIGNED   NOT NULL DEFAULT 0,
             `requester_id`    INT  UNSIGNED      NOT NULL DEFAULT 0,
             PRIMARY KEY    (`id`),
             CONSTRAINT unique_container_id_itilcategory_id UNIQUE (container_id, itilcategory_id)
@@ -77,6 +78,22 @@ function plugin_subtaskgenerator_install()
 
       $DB->queryOrDie($query, $DB->error());
   }
+
+  //создать экземпляр миграции с версией
+      $migration = new Migration($version['version']);
+      //Create table only if it does not exists yet!
+      if (!$DB->tableExists('glpi_plugin_subtaskgenerator_tickets')) {
+        // Запрос на создание таблицы с исправлениями
+        $query = 'CREATE TABLE IF NOT EXISTS `glpi_plugin_subtaskgenerator_tickets` (
+              `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `ticket_id`  INT UNSIGNED   NOT NULL DEFAULT 0,
+              `container_id` INT  UNSIGNED      NOT NULL DEFAULT 0,
+              PRIMARY KEY    (`id`)
+           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;';
+
+        $DB->queryOrDie($query, $DB->error());
+    }
+
     //execute the whole migration
     $migration->executeMigration();
     return true;

@@ -49,7 +49,10 @@ function plugin_init_subtaskgenerator()
     $PLUGIN_HOOKS['csrf_compliant']['subtaskgenerator'] = true;
     $PLUGIN_HOOKS['config_page']['subtaskgenerator'] = 'front/container.php';
     $PLUGIN_HOOKS['menu_toadd']['subtaskgenerator']['config'] = ['PluginSubtaskgeneratorMenucfg'];
-  
+    $PLUGIN_HOOKS['item_add']['subtaskgenerator']['Ticket']  = [
+         'PluginSubtaskgeneratorContainer',
+         'itemAdd'
+     ];
 
 }
 

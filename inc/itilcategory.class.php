@@ -60,6 +60,7 @@ class PluginSubtaskgeneratorItilcategory extends CommonDBTM
       echo '<th>' . __('Category') . '</th>';
       echo '<th>' . __('Description') . '</th>';
       echo '<th>' . __('Инициатор') . '</th>';
+      echo '<th>' . __('SLA') . '</th>';
       echo '<th>' . __('Action') . '</th>';
       echo '</tr>';
 
@@ -71,12 +72,15 @@ class PluginSubtaskgeneratorItilcategory extends CommonDBTM
             $user->getFromDB($this->fields['requester_id']);
             $ITILCategory = new ITILCategory();
             $ITILCategory->getFromDB($this->fields['itilcategory_id']);
+            $SLA = new SLA();
+            $SLA->getFromDB($this->fields['slas_id']);
             echo "<tr class='tab_bg_2' style='cursor:pointer'>";
             echo '<td>' . __($this->fields['id']) . '</td>';
             echo "<td><a href='/front/itilcategory.form.php?id={$ITILCategory->getID()}'>" . __($ITILCategory->getField('name'), 'subtaskgenerator') . "</a></td>";
             echo '</td>';
             echo '<td>'  .$this->fields['description'] . '</td>';
             echo "<td><a href='/front/user.form.php?id={$user->getID()}'>" . __($user->getField('realname') . ' ' . $user->getField('firstname'), 'subtaskgenerator') . "</a></td>";
+            echo '<td>'  . __($SLA->getField('name')) . '</td>';
             echo "<td>";
             echo "<form method='post' action='".Plugin::getWebDir('subtaskgenerator')."/front/itilcategory.form.php'>";
             echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
@@ -127,17 +131,33 @@ class PluginSubtaskgeneratorItilcategory extends CommonDBTM
         'used' => $excluded_itilcategories //исключаем уже выбранных пользователей из выпадающего списка выбора пользователей
     ]);
     echo "</td>";
-    echo "<td><label for='user_id'>" . __('Description') . ":</label></td>";
-    echo "<td>";
+    echo "<td rowspan='3'><label for='description'>" . __('Description') . ":</label></td>";
+    echo "<td rowspan='3'>";
     Html::textarea([
        'name'  => 'description',
        'value' => '', // Значение по умолчанию
-       'rows'  => 4,
+       'rows'  => 6,
        'cols'  => 50,
    ]);
     echo "</td>";
+    echo "</tr>";
+
+    echo "<tr>";
+    echo "<td><label for='slas_id'>" . __('Time to resolve') . ":</label></td>";
+    echo "<td colspan='2'>";
+    SLA::dropdown([
+        'name'       => 'slas_id',
+        'value'      => 0,
+        'entity'     => $_SESSION['glpiactive_entity'],
+        'right'      => 'all',
+        //'used' => $excluded_users //исключаем уже выбранных пользователей из выпадающего списка выбора пользователей
+    ]);
+    echo "</td>";
+    echo "</tr>";
+
+    echo "<tr>";
     echo "<td><label for='user_id'>" . __('Requester') . ":</label></td>";
-    echo "<td>";
+    echo "<td colspan='2'>";
     User::dropdown([
         'name'       => 'requester_id',
         'value'      => 0,
@@ -145,13 +165,17 @@ class PluginSubtaskgeneratorItilcategory extends CommonDBTM
         'right'      => 'all',
         //'used' => $excluded_users //исключаем уже выбранных пользователей из выпадающего списка выбора пользователей
     ]);
-    echo Html::submit(__('Add'), [
-        'name' => 'add',
-        'class' => 'btn btn-secondary ml-2 ms-5'
-    ]);
     echo "</td>";
     echo "</tr>";
+
     echo "</tbody>";
+
+    echo "<tfooter><tr><td colspan='4' align ='center'>";
+    echo Html::submit(__('Add'), [
+        'name' => 'add',
+        'class' => 'btn btn-secondary ml-2 ms-5 mt-5 mb-5'
+    ]);
+    echo "</td></tr></tfooter>";
     echo "</table>";
     Html::closeForm();
   }

@@ -18,6 +18,7 @@ if (isset($_POST["add"]) && isset($_POST['container_id']))
             'requester_id' => $_POST['requester_id'],
             'itilcategory_id' => $_POST['itilcategory_id'],
             'description' => $_POST['description'],
+            'slas_id' => $_POST['slas_id'],
         ]);
     }
     else
