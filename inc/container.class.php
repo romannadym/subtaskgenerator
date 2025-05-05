@@ -121,6 +121,18 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
     echo '</td>';
     echo '</tr>';
     echo '<tr>';
+    echo "<td width='20%'>" . __('Assigned') . ' : </td>';
+    echo '<td>';
+    User::dropdown([
+        'name'       => 'assign_id',
+        'value'      => $this->fields['assign_id'] ?? 0,
+        'entity'     => $_SESSION['glpiactive_entity'],
+        'right'      => 'all',
+        //'used' => $excluded_users //исключаем уже выбранных пользователей из выпадающего списка выбора пользователей
+    ]);
+    echo '</td>';
+    echo '</tr>';
+    echo '<tr>';
     echo '<td>' . __('Active') . ' : </td>';
     echo '<td>';
     Dropdown::showYesNo('is_active', $this->fields['is_active']);
@@ -139,15 +151,44 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
     $this->addStandardTab('PluginSubtaskgeneratorTicket', $ong, $options);
     return $ong;
   }
+
+  public static function preItemAddTicketSubtaskgenerator(CommonDBTM $item)
+  {
+    global $DB, $CFG_GLPI;
+    $container = new self();
+    //Если есть правило по родительской категории
+    if($container = current($container->find(['itilcategory_id'=>$item->input['itilcategories_id']])))
+    {
+      //Если правило активно назначем исполниетля системного пользователя для родиетльской заявки
+      if($container['is_active'] && $container['assign_id'])
+      {
+        $assign = [
+          "itemtype"=> "User",
+          "items_id"=> $container['assign_id'],
+          "use_notification"=> 0,
+          "alternative_email"=> "",
+          "default_email"=> ""
+        ];
+       $item->input['_actors']['assign'] = [$assign];
+      }
+    }
+  }
+
   public static function itemAdd(CommonDBTM $item)
   {
     global $DB, $CFG_GLPI;
     //bafore save change priority
     // Создаём экземпляр текущего класса
-    //  die(json_encode($item->input));
+    //die(json_encode($item));
+
     $container = new self();
+    //Если есть правило по родительской категории
     if($container = current($container->find(['itilcategory_id'=>$item->fields['itilcategories_id']])))
     {
+      if(!$container['is_active'])
+      {
+        return; //Если правило не активно пропускаем
+      }
       $ticket = new PluginSubtaskgeneratorTicket();
       $data = [
         'container_id' => $container['id'],
@@ -159,6 +200,10 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
         $PluginSubtaskgeneratorItilcategory = new PluginSubtaskgeneratorItilcategory();
 
         foreach ($PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id']]) as $value) {
+          if (!$value['requester_id'])
+          {
+            $value['requester_id'] = Session::getLoginUserID(); //Если автор создания подзадачи не указан то подставляем того кто создает основную задачу
+          }
           $subTicket = new Ticket();
           $data = [        // Название новой заявки
             'content'            => $value['description'],     // Описание
