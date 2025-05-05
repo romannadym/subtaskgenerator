@@ -53,6 +53,7 @@ function plugin_subtaskgenerator_install()
               `entities_id`  INT UNSIGNED   NOT NULL DEFAULT 0,
               `is_recursive` TINYINT  UNSIGNED      NOT NULL DEFAULT 0,
               `itilcategory_id` TINYINT  UNSIGNED      NOT NULL DEFAULT 0,
+              `assign_id` TINYINT(10) UNSIGNED NULL DEFAULT NULL,
               `is_active`    TINYINT  UNSIGNED      NOT NULL DEFAULT 0,
               PRIMARY KEY    (`id`),
               CONSTRAINT unique_itilcategory_id UNIQUE (itilcategory_id),
