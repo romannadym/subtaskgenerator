@@ -8,7 +8,7 @@ if (empty($_GET['id'])) {
 $container = new PluginSubtaskgeneratorContainer();
 
 if (isset($_POST['add'])) {
-    if(empty($_POST['name']))
+    if(empty($_POST['name']) or empty($_POST['assign_id']) or empty($_POST['itilcategory_id']))
     {
           Session::addMessageAfterRedirect(
               __('Все поля должны быть заполнены'),
@@ -25,7 +25,7 @@ if (isset($_POST['add'])) {
     $container->delete($_REQUEST, 1);
     Html::redirect(Plugin::getPhpDir('subtaskgenerator', false) .'/front/container.php');
 }elseif (isset($_POST['update'])) {
-    if(empty($_POST['name']))
+    if(empty($_POST['name']) or empty($_POST['assign_id']) or empty($_POST['itilcategory_id']))
     {
           Session::addMessageAfterRedirect(
               __('Все поля должны быть заполнены'),
