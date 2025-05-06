@@ -79,7 +79,8 @@ class PluginSubtaskgeneratorItilcategory extends CommonDBTM
             echo "<td><a href='/front/itilcategory.form.php?id={$ITILCategory->getID()}'>" . __($ITILCategory->getField('name'), 'subtaskgenerator') . "</a></td>";
             echo '</td>';
             echo '<td>'  .$this->fields['description'] . '</td>';
-            echo "<td><a href='/front/user.form.php?id={$user->getID()}'>" . __($user->getField('realname') . ' ' . $user->getField('firstname'), 'subtaskgenerator') . "</a></td>";
+            $user_name =  empty($user->getField('realname')) && empty($user->getField('firstname')) ? $user->getField('name') : $user->getField('realname') . ' ' . $user->getField('firstname') ;
+            echo "<td><a href='/front/user.form.php?id={$user->getID()}'>" . $user_name . "</a></td>";
             echo '<td>'  . __($SLA->getField('name')) . '</td>';
             echo "<td>";
             echo "<form method='post' action='".Plugin::getWebDir('subtaskgenerator')."/front/itilcategory.form.php'>";

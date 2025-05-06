@@ -80,8 +80,7 @@ function plugin_subtaskgenerator_install()
       $DB->queryOrDie($query, $DB->error());
   }
 
-  //создать экземпляр миграции с версией
-      $migration = new Migration($version['version']);
+
       //Create table only if it does not exists yet!
       if (!$DB->tableExists('glpi_plugin_subtaskgenerator_tickets')) {
         // Запрос на создание таблицы с исправлениями
@@ -94,7 +93,8 @@ function plugin_subtaskgenerator_install()
 
         $DB->queryOrDie($query, $DB->error());
     }
-
+    //создать экземпляр миграции с версией
+    $migration = new Migration($version['version']);
     //execute the whole migration
     $migration->executeMigration();
     return true;

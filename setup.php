@@ -53,6 +53,26 @@ function plugin_init_subtaskgenerator()
          'PluginSubtaskgeneratorContainer',
          'itemAdd'
      ];
+    $PLUGIN_HOOKS['pre_item_add']['subtaskgenerator']['Ticket']  = [
+        'PluginSubtaskgeneratorContainer',
+        'preItemAddTicketSubtaskgenerator'
+    ];
+    $PLUGIN_HOOKS['post_item_form']['subtaskgenerator'] = [
+         'PluginSubtaskgeneratorFields',
+         'showForTab'
+     ];
+     $PLUGIN_HOOKS['item_update']['subtaskgenerator']['Ticket']  = [
+          'PluginSubtaskgeneratorContainer',
+          'itemUpdate'
+      ];
+          /* $PLUGIN_HOOKS['pre_show_item']['subtaskgenerator']['Ticket']  = [
+        'PluginSubtaskgeneratorTicketstatus',
+        'getAllStatusArray'
+    ];
+     // Подмена стандартного класса
+    Plugin::registerClass('Ticket', [
+        'classname' => 'PluginSubtaskgeneratorTicketstatus'
+    ]);*/
 
 }
 

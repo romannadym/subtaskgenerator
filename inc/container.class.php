@@ -116,7 +116,7 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
       'value'      => $this->fields['itilcategory_id'],
       'entity'     => $_SESSION['glpiactive_entity'],
       'right'      => 'all',
-      'used' => $excluded_itilcategories //исключаем уже выбранных пользователей из выпадающего списка выбора пользователей
+      'used' => $excluded_itilcategories //исключаем уже выбранные категории из выпадающего списка выбора пользователей
     ]);
     echo '</td>';
     echo '</tr>';
@@ -198,23 +198,22 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
       {
         //add log
         $PluginSubtaskgeneratorItilcategory = new PluginSubtaskgeneratorItilcategory();
-
-        foreach ($PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id']]) as $value) {
-          if (!$value['requester_id'])
+        $ticketInfo = current($PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id']]));
+          if (!$ticketInfo['requester_id'])
           {
-            $value['requester_id'] = Session::getLoginUserID(); //Если автор создания подзадачи не указан то подставляем того кто создает основную задачу
+            $ticketInfo['requester_id'] = Session::getLoginUserID(); //Если автор создания подзадачи не указан то подставляем того кто создает основную задачу
           }
           $subTicket = new Ticket();
           $data = [        // Название новой заявки
-            'content'            => $value['description'],     // Описание
-            'itilcategories_id'  => $value['itilcategory_id'],                         // Категория заявки
+            'content'            => $ticketInfo['description'],     // Описание
+            'itilcategories_id'  => $ticketInfo['itilcategory_id'],                         // Категория заявки
             'entities_id'        => $_SESSION['glpiactive_entity'], // Текущая сущность
-            'users_id_recipient' => $value['requester_id'], // Пользователь, создавший заявку
+            'users_id_recipient' => $ticketInfo['requester_id'], // Пользователь, создавший заявку
             '_users_id_requester' => [
-              '_actors_2'  => $value['requester_id'],
+              '_actors_2'  => $ticketInfo['requester_id'],
             ], // Пользователь, создавший заявку
-            'users_id_recipient' => $value['requester_id'], // Пользователь, создавший заявку
-            'users_id_lastupdater' => $value['requester_id'], // Пользователь, создавший заявку
+            'users_id_recipient' => $ticketInfo['requester_id'], // Пользователь, создавший заявку
+            'users_id_lastupdater' => $ticketInfo['requester_id'], // Пользователь, создавший заявку
             'type'               => Ticket::DEMAND_TYPE        // Тип заявки обращение
           ];
           if($subTicket->add($data))
@@ -233,12 +232,12 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
               'tickets_id_2' => $newTicketId,   // ID дочерней заявки
               'link'         => Ticket_Ticket::SON_OF  // Тип связи
             ];
-            if($value['slas_id'])
+            if($ticketInfo['slas_id'])
             {
               $subTicket->update([
                 'id' => $newTicketId,
-                'slas_id_ttr'=>$value['slas_id'],
-                'users_id_lastupdater' => $value['requester_id'],
+                'slas_id_ttr'=>$ticketInfo['slas_id'],
+                'users_id_lastupdater' => $ticketInfo['requester_id'],
               ]);
             }
             if($childLink->add($linkData))
@@ -246,10 +245,162 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
               //add log
             }
           }
-        }
+
       }
     }
 
     return;
+  }
+
+  public static function itemUpdate(CommonDBTM $item)
+  {
+    $ticket_id = $item->fields['id'];
+
+    $ticket_ticket = new Ticket_Ticket();
+    $parents = $ticket_ticket->getLinkedTicketsTo($ticket_id, Ticket_Ticket::SON_OF);//находим связанные задачи с типом связи - 3
+
+    foreach($parents as $parent)
+    {
+
+      if(isset($parent['tickets_id_1'])) //еслис в связи есть есть id родителя заявки
+      {
+
+        $ticket_parent_plugin = new PluginSubtaskgeneratorTicket();
+        //если родительская не заявка связана с плагином то останавливаем
+        if(!$ticket_parent_plugin = current($ticket_parent_plugin->find(['ticket_id' => $parent['tickets_id_1']])))
+        {
+          return;
+        }
+
+        $chaild_ticket_plan = new PluginSubtaskgeneratorItilcategory();
+        //если в правилах нет критериев создания потомков то останавливаем
+        if(!$chaild_ticket_plan = $chaild_ticket_plan->find(['container_id' => $ticket_parent_plugin['container_id']]))
+        {
+          return;
+        }
+        //получаем всех потомков родительской заявки
+        $childs_tickets = new Ticket_Ticket();
+
+        $childs_tickets = $childs_tickets->getLinkedTicketsTo($parent['tickets_id_1'], Ticket_Ticket::SON_OF);
+
+        foreach($childs_tickets as $key => $child)
+        {
+          //если у родителя есть родительская связь то удаляем эту связь из массива
+          if($child['tickets_id_1'])
+          {
+            unset($childs_tickets[$key]);
+            continue;
+          }
+          //агрегируем потомков
+          $ticket = new Ticket();
+          $ticket = current($ticket->find(['id' => $child['tickets_id']]));
+          if($ticket)
+          {
+            $childs_tickets[$key]['itilcategories_id'] = $ticket['itilcategories_id'];
+            $childs_tickets[$key]['status'] = $ticket['status'];
+          }
+        }
+        //если не все потомки созданы то создаем последовательно в зависимотси от статуса
+        if(count($childs_tickets) < count($chaild_ticket_plan))
+        {
+
+          if($last_child_ticket = end($childs_tickets)['status'] == 5)
+            {
+              array_splice($chaild_ticket_plan, 0, count($childs_tickets));
+              $plan = current($chaild_ticket_plan);
+              self::createSubTicket($plan, $parent['tickets_id_1']);
+            }
+        }
+
+        //если все птоомки созданы и выполнены то работем с родительской заявкой
+        $status = false;
+        if(count($childs_tickets) == count($chaild_ticket_plan))
+        {
+          $count_status_true = [];
+          foreach($childs_tickets as $child)
+          {
+            if($child['status'] == 5)
+            {
+              $count_status_true[] = $child['status'];
+            }
+          }
+          if(count($count_status_true) == count($chaild_ticket_plan))
+          {
+            $status = true;
+          }
+        }
+        $parentTicket = new Ticket();
+        if($status)
+        {
+
+          $parentTicket->update([
+            'id' => $parent['tickets_id_1'],
+            'status'=>5
+          ]);
+        }
+        else
+        {
+          $parentTicket->update([
+            'id' => $parent['tickets_id_1'],
+            'status'=>3
+          ]);
+        }
+
+      //  die(json_encode($ticket));
+
+      // die(json_encode($childs_tickets));
+
+      }
+
+    }
+
+  }
+
+  public static function createSubTicket($plan, $parent_id)
+  {
+    if(!$plan || !$parent_id)
+    {
+      return;
+    }
+    $subTicket = new Ticket();
+    $data = [        // Название новой заявки
+      'content'            => $plan['description'],     // Описание
+      'itilcategories_id'  => $plan['itilcategory_id'],                         // Категория заявки
+      'entities_id'        => $_SESSION['glpiactive_entity'], // Текущая сущность
+      'users_id_recipient' => $plan['requester_id'], // Пользователь, создавший заявку
+      '_users_id_requester' => [
+        '_actors_2'  => $plan['requester_id'],
+      ], // Пользователь, создавший заявку
+      'users_id_recipient' => $plan['requester_id'], // Пользователь, создавший заявку
+      'users_id_lastupdater' => $plan['requester_id'], // Пользователь, создавший заявку
+      'type'               => Ticket::DEMAND_TYPE        // Тип заявки обращение
+    ];
+
+    if($subTicket->add($data))
+    {
+      //add log
+      // ID новой заявки
+      $newTicketId = $subTicket->fields['id'];
+
+      // Привязываем новую заявку к родительской
+      $childLink = new Ticket_Ticket();
+      $linkData = [
+        'tickets_id_1' => $parent_id, // ID родительской заявки
+        'tickets_id_2' => $newTicketId,   // ID дочерней заявки
+        'link'         => Ticket_Ticket::SON_OF  // Тип связи
+      ];
+      if($plan['slas_id'])
+      {
+        $subTicket->update([
+          'id' => $newTicketId,
+          'slas_id_ttr'=>$plan['slas_id'],
+          'users_id_lastupdater' => $plan['requester_id'],
+        ]);
+      }
+      if($childLink->add($linkData))
+      {
+        //add log
+      }
+    }
   }
 }

@@ -11,8 +11,12 @@ $field = new PluginSubtaskgeneratorItilcategory();
 if (isset($_POST["add"]) && isset($_POST['container_id']))
 {
 
-    if($_POST['requester_id'] != 0 && $_POST['itilcategory_id'] != 0 && !empty($_POST['description']))
+  if($_POST['itilcategory_id'] != 0 && !empty($_POST['description']))
+  {
+    if(empty($_POST['requester_id']))
     {
+      $_POST['requester_id'] = 0;
+    }
       $field->add([
             'container_id' => $_POST['container_id'],
             'requester_id' => $_POST['requester_id'],

@@ -66,7 +66,7 @@ class PluginSubtaskgeneratorTicket extends CommonDBTM
       echo '</tr>';
 
       echo '<tbody>';
-      foreach($iterator as $row) 
+      foreach($iterator as $row)
         {
             $ticket = new Ticket();
             $ticket->getFromDB($row['ticket_id']);
@@ -83,7 +83,7 @@ class PluginSubtaskgeneratorTicket extends CommonDBTM
                 if ($user->getFromDB($initiator_id)) {
                     $initiator_name = $user->getLink('name');
                 }
-            }       
+            }
 
             // Получение ID категории
             $category_id = $ticket->getField('itilcategories_id');
@@ -99,7 +99,7 @@ class PluginSubtaskgeneratorTicket extends CommonDBTM
             $ticket_id = $ticket->getID();
             $query = "SELECT users_id FROM glpi_tickets_users WHERE tickets_id = $ticket_id AND type = 2";
             $result = $DB->query($query);
-        
+
             if ($result && $DB->numrows($result) > 0) {
                 $data = $DB->fetch_assoc($result);
                 $user = new User();
@@ -126,7 +126,7 @@ class PluginSubtaskgeneratorTicket extends CommonDBTM
             echo '<td>' . $sla_name . '</td>';
             echo '<td>'. $executor_name .'</td>';
             echo '</tr>';
-                    
+
                 }
     echo '</tbody>';
     echo '</table>';
