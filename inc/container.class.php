@@ -198,7 +198,10 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
       {
         //add log
         $PluginSubtaskgeneratorItilcategory = new PluginSubtaskgeneratorItilcategory();
-        $ticketInfo = current($PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id']]));
+        $ticketInfo = $PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id']]);
+        ksort($ticketInfo);//Сортировка по ключам
+        $ticketInfo = current($ticketInfo);
+      //  file_put_contents(GLPI_ROOT.'/tmp/buffer.txt',PHP_EOL.PHP_EOL."[".date("Y-m-d H:i:s")."] ". json_encode($PluginSubtaskgeneratorItilcategory->find(['container_id' => $container['id'],['ORDER' => 'id ASC']]),JSON_UNESCAPED_UNICODE), FILE_APPEND);
           if (!$ticketInfo['requester_id'])
           {
             $ticketInfo['requester_id'] = Session::getLoginUserID(); //Если автор создания подзадачи не указан то подставляем того кто создает основную задачу
@@ -230,7 +233,7 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
             $linkData = [
               'tickets_id_1' => $parentTicketId, // ID родительской заявки
               'tickets_id_2' => $newTicketId,   // ID дочерней заявки
-              'link'         => Ticket_Ticket::SON_OF  // Тип связи
+              'link'         => Ticket_Ticket::PARENT_OF  // Тип связи
             ];
             if($ticketInfo['slas_id'])
             {
@@ -257,17 +260,17 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
     $ticket_id = $item->fields['id'];
 
     $ticket_ticket = new Ticket_Ticket();
-    $parents = $ticket_ticket->getLinkedTicketsTo($ticket_id, Ticket_Ticket::SON_OF);//находим связанные задачи с типом связи - 3
+    $parents = $ticket_ticket->getLinkedTicketsTo($ticket_id, Ticket_Ticket::PARENT_OF);//находим связанные задачи с типом связи - 3
 
     foreach($parents as $parent)
     {
 
-      if(isset($parent['tickets_id_1'])) //еслис в связи есть есть id родителя заявки
+      if(isset($parent['tickets_id'])) //еслис в связи есть есть id родителя заявки
       {
 
         $ticket_parent_plugin = new PluginSubtaskgeneratorTicket();
-        //если родительская не заявка связана с плагином то останавливаем
-        if(!$ticket_parent_plugin = current($ticket_parent_plugin->find(['ticket_id' => $parent['tickets_id_1']])))
+        //если родительская заявка  связана с плагином то останавливаем
+        if(!$ticket_parent_plugin = current($ticket_parent_plugin->find(['ticket_id' => $parent['tickets_id']])))
         {
           return;
         }
@@ -278,15 +281,17 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
         {
           return;
         }
+        ksort($chaild_ticket_plan);//сортируем по ключу
         //получаем всех потомков родительской заявки
         $childs_tickets = new Ticket_Ticket();
 
-        $childs_tickets = $childs_tickets->getLinkedTicketsTo($parent['tickets_id_1'], Ticket_Ticket::SON_OF);
-
+        $childs_tickets = $childs_tickets->getLinkedTicketsTo($parent['tickets_id'], Ticket_Ticket::SON_OF);
+      //  file_put_contents(GLPI_ROOT.'/tmp/buffer.txt',PHP_EOL.PHP_EOL."[".date("Y-m-d H:i:s")."] ". json_encode($childs_tickets,JSON_UNESCAPED_UNICODE), FILE_APPEND);
+        ksort($childs_tickets);//сортируем по ключу
         foreach($childs_tickets as $key => $child)
         {
           //если у родителя есть родительская связь то удаляем эту связь из массива
-          if($child['tickets_id_1'])
+          if(!isset($child['tickets_id_1']))
           {
             unset($childs_tickets[$key]);
             continue;
@@ -308,14 +313,18 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
             {
               array_splice($chaild_ticket_plan, 0, count($childs_tickets));
               $plan = current($chaild_ticket_plan);
-              self::createSubTicket($plan, $parent['tickets_id_1']);
+              self::createSubTicket($plan, $parent['tickets_id']);
+              return;
+
             }
         }
 
         //если все птоомки созданы и выполнены то работем с родительской заявкой
         $status = false;
+
         if(count($childs_tickets) == count($chaild_ticket_plan))
         {
+
           $count_status_true = [];
           foreach($childs_tickets as $child)
           {
@@ -324,24 +333,25 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
               $count_status_true[] = $child['status'];
             }
           }
+        //  die(json_encode($childs_tickets));
           if(count($count_status_true) == count($chaild_ticket_plan))
           {
             $status = true;
           }
         }
+
         $parentTicket = new Ticket();
         if($status)
         {
-
           $parentTicket->update([
-            'id' => $parent['tickets_id_1'],
+            'id' => $parent['tickets_id'],
             'status'=>5
           ]);
         }
         else
         {
           $parentTicket->update([
-            'id' => $parent['tickets_id_1'],
+            'id' => $parent['tickets_id'],
             'status'=>3
           ]);
         }
@@ -361,6 +371,16 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
     if(!$plan || !$parent_id)
     {
       return;
+    }
+    //Если инициатор не указан то подставляем инициатора из  родительского обращения
+    if(empty($plan['requester_id']))
+    {
+      $ticket_user = new Ticket_User();
+      $initiators = $ticket_user->find([
+          'tickets_id' => $parent_id,
+          'type'       => Ticket_User::REQUESTER
+      ]);
+      $plan['requester_id'] = current($initiators)['users_id'];
     }
     $subTicket = new Ticket();
     $data = [        // Название новой заявки
@@ -387,7 +407,7 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
       $linkData = [
         'tickets_id_1' => $parent_id, // ID родительской заявки
         'tickets_id_2' => $newTicketId,   // ID дочерней заявки
-        'link'         => Ticket_Ticket::SON_OF  // Тип связи
+        'link'         => Ticket_Ticket::PARENT_OF  // Тип связи
       ];
       if($plan['slas_id'])
       {
@@ -401,6 +421,7 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
       {
         //add log
       }
+      return;
     }
   }
 }
