@@ -99,9 +99,8 @@ class PluginSubtaskgeneratorTicket extends CommonDBTM
             $ticket_id = $ticket->getID();
             $query = "SELECT users_id FROM glpi_tickets_users WHERE tickets_id = $ticket_id AND type = 2";
             $result = $DB->query($query);
-
-            if ($result && $DB->numrows($result) > 0) {
-                $data = $DB->fetch_assoc($result);
+            $data = $DB->fetchAssoc($result);
+            if ($data !== false) {
                 $user = new User();
                 if ($user->getFromDB($data['users_id'])) {
                     $executor_name = $user->getLink('name');
