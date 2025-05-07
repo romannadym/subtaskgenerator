@@ -43,7 +43,7 @@ class PluginSubtaskgeneratorFields extends CommonDBChild
                                         </div>
                                     </div>
                                  </div>`;
-                    $('#heading-main-item').before(textAlert); //выводем сообщение
+                    //$('#heading-main-item').before(textAlert); //выводем сообщение
                  })
 
                  JAVASCRIPT
