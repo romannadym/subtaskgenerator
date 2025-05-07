@@ -16,6 +16,7 @@ if (isset($_POST['add'])) {
               ERROR
           );
           Html::back();
+          return;
     }
     $container->check(-1, CREATE, $_POST);
     $newID = $container->add($_POST);
@@ -32,6 +33,8 @@ if (isset($_POST['add'])) {
               false,
               ERROR
           );
+          Html::back();
+          return;
     }
     $container->check($_POST['id'], UPDATE);
     $container->update($_POST);
