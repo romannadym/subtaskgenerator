@@ -261,6 +261,9 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
 
     $ticket_ticket = new Ticket_Ticket();
     $parents = $ticket_ticket->getLinkedTicketsTo($ticket_id, Ticket_Ticket::PARENT_OF);//находим связанные задачи с типом связи - 3
+    if (!isset($item->fields['status'])) {
+        return;
+    }
 
     foreach($parents as $parent)
     {
@@ -281,13 +284,37 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
         {
           return;
         }
-        ksort($chaild_ticket_plan);//сортируем по ключу
-        //получаем всех потомков родительской заявки
-        $childs_tickets = new Ticket_Ticket();
 
-        $childs_tickets = $childs_tickets->getLinkedTicketsTo($parent['tickets_id'], Ticket_Ticket::SON_OF);
-      //  file_put_contents(GLPI_ROOT.'/tmp/buffer.txt',PHP_EOL.PHP_EOL."[".date("Y-m-d H:i:s")."] ". json_encode($childs_tickets,JSON_UNESCAPED_UNICODE), FILE_APPEND);
+        $container = new self();
+        if($container = current($container->find(['id'=>$ticket_parent_plugin['container_id']])))
+        {
+          if(!$container['is_active'])
+          {
+            return; //Если правило не активно пропускаем
+          }
+        }
+        ksort($chaild_ticket_plan);//сортируем по ключу
+
+        $childs_tickets = new Ticket_Ticket();
+        if (!isset($_SESSION["glpiactiveprofile"][Ticket::$rightname]))
+        {
+          return;
+        }
+        $currentProfileticket =  $_SESSION["glpiactiveprofile"][Ticket::$rightname];
+        //если у пользователя не хватает прав на чтение всех потомков родительсокй заявки то временно повышаем
+        if(!(intval($currentProfileticket) & Ticket::READALL))
+        {
+            $_SESSION["glpiactiveprofile"][Ticket::$rightname] = Ticket::READALL;
+        }
+
+        //получаем всех потомков родительской заявки
+        $childs_tickets = $childs_tickets->getLinkedTicketsTo($parent['tickets_id'], Ticket_Ticket::PARENT_OF);
+
+        //возвращаем права обратно
+        $_SESSION["glpiactiveprofile"][Ticket::$rightname] = $currentProfileticket;
+
         ksort($childs_tickets);//сортируем по ключу
+
         foreach($childs_tickets as $key => $child)
         {
           //если у родителя есть родительская связь то удаляем эту связь из массива
@@ -306,10 +333,11 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
           }
         }
         //если не все потомки созданы то создаем последовательно в зависимотси от статуса
+
         if(count($childs_tickets) < count($chaild_ticket_plan))
         {
 
-          if($last_child_ticket = end($childs_tickets)['status'] == 5)
+          if($last_child_ticket = end($childs_tickets)['status'] == Ticket::SOLVED)
             {
               array_splice($chaild_ticket_plan, 0, count($childs_tickets));
               $plan = current($chaild_ticket_plan);
@@ -328,7 +356,7 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
           $count_status_true = [];
           foreach($childs_tickets as $child)
           {
-            if($child['status'] == 5)
+            if($child['status'] == Ticket::SOLVED || $child['status'] == Ticket::CLOSED)
             {
               $count_status_true[] = $child['status'];
             }
@@ -341,11 +369,13 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
         }
 
         $parentTicket = new Ticket();
+
         if($status)
         {
+          self::sendFollowupOrSolution($ticket_id, $parent['tickets_id']);
           $parentTicket->update([
             'id' => $parent['tickets_id'],
-            'status'=>5
+            'status'=>Ticket::SOLVED
           ]);
         }
         else
@@ -356,14 +386,111 @@ class PluginSubtaskgeneratorContainer extends CommonDBTM
           ]);
         }
 
-      //  die(json_encode($ticket));
-
-      // die(json_encode($childs_tickets));
-
       }
 
     }
 
+  }
+
+  public static function sendFollowupOrSolution($ticket_id, $parent_id)
+  {
+    $last_solution = self::getLastSolution($ticket_id);
+    $last_followup = self::getLastFollowup($ticket_id);
+    if($last_solution && $last_followup)
+    {
+      $date_solution = strtotime($last_solution['date_creation']);
+      $date_followup = strtotime($last_followup['date_creation']);
+
+      if($date_solution > $date_followup)
+      {
+        // Создаем объект решения
+        $solution = new ITILSolution();
+
+        // Данные для добавления
+        $input = [
+            'itemtype'  => 'Ticket',     // Тип объекта (заявка)
+            'items_id'  => $parent_id,   // ID заявки
+            'content'   => $last_solution['content'], // Текст решения
+            // 'solutiontypes_id' => 1,   // Опционально: ID типа решения (если используется)
+        ];
+        $solution->add($input);
+      }
+      else
+      {
+        // Создаем объект ответа
+        $followup = new ITILFollowup();
+
+        // Данные для добавления
+        $input = [
+            'itemtype'  => 'Ticket',     // Тип объекта (заявка)
+            'items_id'  => $parent_id,   // ID заявки
+            'content'   => $last_followup['content'], // Текст ответа
+        ];
+        $followup->add($input);
+      }
+
+    }
+    elseif($last_solution)
+    {
+
+      // Создаем объект решения
+      $solution = new ITILSolution();
+
+      // Данные для добавления
+      $input = [
+          'itemtype'  => 'Ticket',     // Тип объекта (заявка)
+          'items_id'  => $parent_id,   // ID заявки
+          'content'   => $last_solution['content'], // Текст решения
+          // 'solutiontypes_id' => 1,   // Опционально: ID типа решения (если используется)
+      ];
+      $solution->add($input);
+
+    }
+    elseif($last_followup)
+    {
+      // Создаем объект ответа
+      $followup = new ITILFollowup();
+
+      // Данные для добавления
+      $input = [
+          'itemtype'  => 'Ticket',     // Тип объекта (заявка)
+          'items_id'  => $parent_id,   // ID заявки
+          'content'   => $last_followup['content'], // Текст ответа
+      ];
+      $followup->add($input);
+    }
+  }
+
+  public static function getLastSolution($ticket_id)
+  {
+    $solution = new ITILSolution();
+    // Получаем последнее решение по текущей задаче
+    $last_solution = $solution->find(
+        [
+            'itemtype' => 'Ticket', // Тип объекта
+            'items_id' => $ticket_id // ID заявки
+        ],
+        ['id DESC'], // Сортировка по дате (последний сначала)
+        1 // Лимит 1 запись
+    );
+
+    return current($last_solution);
+  }
+
+  public static function getLastFollowup($ticket_id)
+  {
+    // Получаем последний ответ по текущей задаче
+    $followup = new ITILFollowup();
+    $last_followup = $followup->find(
+        [
+            'itemtype' => 'Ticket', // Тип объекта
+            'items_id' => $ticket_id // ID заявки
+        ],
+        ['id DESC'], // Сортировка по дате (последний сначала)
+        1 // Лимит 1 запись
+    );
+
+      return current($last_followup);
   }
 
   public static function createSubTicket($plan, $parent_id)
