@@ -13,6 +13,6 @@ if (!$plugin->isInstalled('subtaskgenerator') || !$plugin->isActivated('subtaskg
     "pluginsubtaskgeneratormenucfg",
     "subtaskgeneratorcontainer"
   );
-
+Session::checkRight('config', READ);
 Search::show('PluginSubtaskgeneratorContainer');
 Html::footer();
